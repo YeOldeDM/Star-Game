@@ -1,27 +1,64 @@
-
+#need to fix
 extends RigidBody2D
 
 var name
-var race
-var max_health
-var health 
-var max_energy
-var energy
-
-var shape_hit
+#var race
+#var type
+var condition = 'normal'
+var size = 0
+var size_name
+var max_health = 1
+var health = 1 setget change_health
+var max_energy = 1
+var energy = 1 setget change_energy
 var shield_strength
-
+var shape_hit
+var shield_index
+var credit = {}
 var impacts = {}
 
-func _ready():
 
-	set_process(true)
-	
-	
-func _process(delta):
-	#slowly regenerate energy "from neutrino collectors"
-	if max_energy > 0 and energy < max_energy:
-		energy += .001
+func _ready():
+	if size == 0:
+		size_name = 'small'
+	elif size == 1:
+		size_name = 'medium'
+	elif size == 2:
+		size_name = 'large'
+	else:
+		print('something screwy with size in ' + name)
+
+
+func change_health(action, value):
+	if action == 'add':
+		if health + value <= max_health:
+			health += value
+		else:
+			health = max_health
+	elif action == 'subtract':
+		if health - value >= 0:
+			health -= value
+		else:
+			health = 0
+	elif action == 'set':
+		if value >= 0 and value >= max_health:
+			health = value
+
+
+func change_energy(action, value):
+	if action == 'add':
+		if energy + value <= max_energy:
+			energy += value
+		else:
+			energy = max_energy
+	elif action == 'subtract':
+		if energy - value >= 0:
+			energy -= value
+		else:
+			energy = 0
+	elif action == 'set':
+		if value >= 0 and value >= max_energy:
+			energy = value
 
 
 func _integrate_forces(state):
@@ -32,36 +69,37 @@ func _integrate_forces(state):
 		if not collider in impacts:
 			impacts[collider] = 0
 			hit_by(collider, shape_hit)
+	
 		
 	if impacts != null:
-		for each in impacts:
-			impacts[each] += 1
-			if impacts[each] == 45:
-				hit_by(each, shape_hit)
-				impacts[each] = 0
+		for obj in impacts:
+			if obj in self.get_colliding_bodies():
+				impacts[obj] += 1
+				if impacts[obj] == 45:
+					hit_by(obj, shape_hit)
+					impacts[obj] = 0
+			else:
+				impacts.erase(obj)
+			
 
 
 func hit_by(obj, at=null):
 	var shape
+	var culprit
 	var reward = health
 	var hit = 0
 	if at == 0:
 		shape = 'hull'
-	elif at == 1:
+	elif at == shield_index:
 		shape = 'shield'
 		
-	if obj.name == 'laser_shot':
+	if 'projectiles' in obj.get_groups():
 		hit = obj.payload
 		set_applied_force(obj.direction * (obj.acceleration + obj.payload))
-	elif 'material' in obj and 'material' in self:
-		if obj.get_mass() > get_mass():
-			health += (obj.get_mass() + get_mass()) / 2.5
-		if health > max_health:
-			health = max_health
 	else:
 		hit = obj.get_mass()
 	if shape == 'shield':
-		energy -= hit / shield_strength
+		energy -= hit / self.shield_strength
 		if energy < 0:
 			health += energy
 			energy = 0
@@ -72,15 +110,14 @@ func hit_by(obj, at=null):
 		health = 0
 	if health < reward:
 		reward -= health
-		if obj.name == 'laser_shot':
-			obj.get_parent().reward(int(reward))
+		if 'projectiles' in obj.get_groups():
+			culprit = obj.owner
 		else:
-			obj.reward(reward)
+			culprit = obj
+	if culprit != null:
+		if not culprit.name in credit:
+			credit[culprit.name] = {'who':culprit, 'gets':reward}
 			
-			
-func reward(amount):
-	if name == 'Player':
-		print('recieved reward of ' + str(amount))
-		
-
+		else:
+			credit[culprit.name].gets += reward
 
